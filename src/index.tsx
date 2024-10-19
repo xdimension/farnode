@@ -2,25 +2,32 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Button, Frog, parseEther } from 'frog'
 import { devtools } from 'frog/dev'
-// import { neynar } from 'frog/hubs'
 import { pinata } from 'frog/hubs'
-import {baseSepolia} from 'viem/chains'
+import { base, baseSepolia } from 'viem/chains'
 import { abi } from './contract/abi.js'
+import _config_ from './config'
+import { createPublicClient, http } from 'viem'
+
 
 export const app = new Frog({
   // Supply a Hub to enable frame verification.
   // hub: neynar({ apiKey: 'NEYNAR_FROG_FM' })
   title: 'Frog Frame',
   hub: pinata(),
-  verify: true,
+  verify: false,
 })
 
 app.use('/*', serveStatic({ root: './public' }))
 
-const contractAddr = '0x9Ff3f90C4c1668D5592e27Eef1A403Fad2000E52'
-const ticketPrice = '0.0001'
+const contractAddr: any = _config_.contractAddr
+const ticketPrice = _config_.ticketPrice
 
-app.frame('/', (c) => {
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http()
+})
+
+app.frame('/', async (c) => {
   const { buttonValue, buttonIndex, status, frameData, verified } = c
 
   console.log('verified', verified)
@@ -30,7 +37,6 @@ app.frame('/', (c) => {
   console.log('fid', fid)
 
   return c.res({
-    action: '/finish',
     image: (
       <div
         style={{
@@ -61,32 +67,135 @@ app.frame('/', (c) => {
             whiteSpace: 'pre-wrap',
           }}
         >
-          {status === 'response'
-            ? 'Thank you for joining'
-            : 'Hello'}
-        </div>
-        <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            color: 'white',
-            fontSize: 30,
-            fontStyle: 'normal',
-            padding: '0'
-          }}>
-           <p>Btn Value: {buttonValue}</p>
-           <p>Btn Index: {buttonIndex}</p>
+          Hello! You may need to visit our site to setup your promotion.
         </div>
       </div>
     ),
     intents: [
-      <Button.Transaction target="/join">Join Now!</Button.Transaction>,
+      <Button.Link href={_config_.mainAppUrl}>Go to our website</Button.Link>,
+    ],
+  })
+})
+
+app.frame('/cast/:couponId', async (c) => {
+  const { status } = c
+
+  const couponId = c.req.param('couponId')
+  const coupon = await fetch(_config_.mainAppUrl + '/api/coupons/' + couponId)
+                            .then(res => res.json())
+  console.log(coupon)
+
+  return c.res({
+    image: (
+      <div
+        style={{
+          alignItems: 'center',
+          background:
+            status === 'response'
+              ? 'linear-gradient(to right, #432889, #17101F)'
+              : 'black',
+          backgroundSize: '100% 100%',
+          display: 'flex',
+          flexDirection: 'column',
+          flexWrap: 'nowrap',
+          height: '100%',
+          justifyContent: 'center',
+          textAlign: 'center',
+          width: '100%',
+        }}
+      >
+        <img src={coupon.imageUrl} style={{height: '100%'}} />
+      </div>
+    ),
+    intents: [
+      <Button action={`/stats/${couponId}`}>Stats</Button>,
+      <Button.Transaction target={`/join/${couponId}`}>Join Now!</Button.Transaction>,
+    ],
+  })
+})
+
+
+app.frame('/stats/:couponId', async (c) => {
+  const { status } = c
+
+  const couponId = c.req.param('couponId')
+  const coupon = await fetch(_config_.mainAppUrl + '/api/coupons/' + couponId)
+                            .then(res => res.json())
+  // console.log(coupon)
+
+  const tickets = await publicClient.readContract({
+    address: contractAddr,
+    abi: abi,
+    functionName: 'getTicketsByCouponID',
+    args: [parseInt(couponId)]
+  })
+  // console.log(tickets)
+
+  return c.res({
+    image: (
+      <div
+        style={{
+          alignItems: 'center',
+          background:
+            status === 'response'
+              ? 'linear-gradient(to right, #432889, #17101F)'
+              : 'black',
+          backgroundSize: '100% 100%',
+          display: 'flex',
+          flexDirection: 'column',
+          flexWrap: 'nowrap',
+          height: '100%',
+          justifyContent: 'center',
+          textAlign: 'center',
+          width: '100%',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            width: '100%',
+            color: 'white',
+            fontSize: 40,
+            fontStyle: 'normal',
+            letterSpacing: '-0.025em',
+            lineHeight: 1.4,
+            marginTop: 30,
+            padding: '0 120px',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex' }}>
+              <div style={{ display: 'flex', fontWeight: 'bold' }}>Coupon ID:</div>
+              <div style={{ display: 'flex' }}>{coupon.id}</div>
+            </div>
+            <div style={{ display: 'flex' }}>
+              <div style={{ display: 'flex', fontWeight: 'bold' }}>Number of Winners:</div>
+              <div style={{ display: 'flex' }}>{coupon.numOfWinners}</div>
+            </div>
+            <div style={{ display: 'flex' }}>
+              <div style={{ display: 'flex', fontWeight: 'bold' }}>Max Tickets:</div>
+              <div style={{ display: 'flex' }}>{coupon.maxNumOfTickets}</div>
+            </div>
+            <div style={{ display: 'flex' }}>
+              <div style={{ display: 'flex', fontWeight: 'bold' }}>Min Tickets Requirement:</div>
+              <div style={{ display: 'flex' }}>{coupon.minNumOfTickets} {tickets.length >= coupon.minNumOfTickets ? ' achieved' : ' not achieved'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+    intents: [
+      <Button action={`/cast/${couponId}`}>Back to Home</Button>,
+      <Button.Transaction target={`/join/${couponId}`}>Join Now!</Button.Transaction>,
     ],
   })
 })
 
 app.frame('/finish', (c) => {
   const { transactionId } = c
-
   console.log('transactionId', transactionId)
 
   return c.res({
@@ -108,23 +217,17 @@ app.frame('/finish', (c) => {
   })
 })
 
-app.transaction('/join', (c) => {
+app.transaction('/join/:couponId', (c) => {
+  const couponId = c.req.param('couponId')
+
   return c.contract({
     abi,
-    functionName: 'enter',
-    args: [],
+    functionName: 'createTicket',
+    args: [parseInt(couponId)],
     chainId: `eip155:${baseSepolia.id}`,
     to: contractAddr,
     value: parseEther(ticketPrice),
   })
 })
 
-const port = 3000
-console.log(`Server is running on port ${port}`)
-
 devtools(app, { serveStatic })
-
-serve({
-  fetch: app.fetch,
-  port,
-})
