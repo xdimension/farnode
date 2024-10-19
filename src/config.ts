@@ -1,8 +1,8 @@
-// import { config } from "dotenv"
-// config()
+import { config } from "dotenv"
+config()
 
 export default {
-  mainAppUrl: 'http://localhost:3333',
-  contractAddr: '0xd425f95801397b0D4A5D535E88a8d6F4935eC1eB',
+  mainAppUrl: process.env.MAIN_APP_URL,
+  contractAddr: process.env.CONTRACT_ADDR,
   ticketPrice: '0.0001'
 }
