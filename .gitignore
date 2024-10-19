@@ -1,1 +1,10 @@
 node_modules
+
+# Secrets
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# contract's abi
+/src/contract/abi.ts
