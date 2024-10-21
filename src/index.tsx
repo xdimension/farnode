@@ -8,18 +8,15 @@ import { abi } from './contract/abi.js'
 import _config_ from './config'
 import { createPublicClient, http } from 'viem'
 
-
 export const app = new Frog({
-  // Supply a Hub to enable frame verification.
-  // hub: neynar({ apiKey: 'NEYNAR_FROG_FM' })
-  title: 'Frog Frame',
+  title: 'Farcaster Group Buy',
   hub: pinata(),
   verify: false,
 })
 
 app.use('/*', serveStatic({ root: './public' }))
 
-const contractAddr: any = _config_.contractAddr
+const contractAddr = _config_.contractAddr
 const ticketPrice = _config_.ticketPrice
 
 const publicClient = createPublicClient({
@@ -78,7 +75,7 @@ app.frame('/', async (c) => {
 })
 
 app.frame('/cast/:couponId', async (c) => {
-  const { status } = c
+  const { status, frameData } = c
 
   const couponId = c.req.param('couponId')
   const coupon = await fetch(_config_.mainAppUrl + '/api/coupons/' + couponId)
@@ -116,7 +113,11 @@ app.frame('/cast/:couponId', async (c) => {
 
 
 app.frame('/stats/:couponId', async (c) => {
-  const { status } = c
+  const { status, frameData } = c
+
+  // console.log('contex: ', c)
+
+  const userWalletAddress = frameData?.address
 
   const couponId = c.req.param('couponId')
   const coupon = await fetch(_config_.mainAppUrl + '/api/coupons/' + couponId)
@@ -129,7 +130,16 @@ app.frame('/stats/:couponId', async (c) => {
     functionName: 'getTicketsByCouponID',
     args: [parseInt(couponId)]
   })
-  // console.log(tickets)
+
+  let ownTickets
+  if (userWalletAddress) {
+    ownTickets = await publicClient.readContract({
+      address: contractAddr,
+      abi: abi,
+      functionName: 'getBuyerTickets',
+      args: [parseInt(couponId), `0x${userWalletAddress}`]
+    })
+  }
 
   return c.res({
     image: (
@@ -188,7 +198,7 @@ app.frame('/stats/:couponId', async (c) => {
       </div>
     ),
     intents: [
-      <Button action={`/cast/${couponId}`}>Back to Home</Button>,
+      <Button action={`/cast/${couponId}`}>Back to Main</Button>,
       <Button.Transaction target={`/join/${couponId}`}>Join Now!</Button.Transaction>,
     ],
   })
