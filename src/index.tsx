@@ -9,7 +9,7 @@ import _config_ from './config'
 import { createPublicClient, http } from 'viem'
 
 export const app = new Frog({
-  title: 'Farcaster Group Buy',
+  title: 'CouponCast - Farcaster Group Buy',
   hub: pinata(),
   verify: false,
 })
