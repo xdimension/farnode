@@ -8,3 +8,6 @@ node_modules
 
 # contract's abi
 /src/contract/abi.ts
+
+# build
+.vercel/**
